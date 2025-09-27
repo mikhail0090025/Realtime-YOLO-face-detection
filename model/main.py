@@ -58,7 +58,7 @@ async def predict(tensor_file: UploadFile = File(...)):
     # Get image with objects
     with torch.no_grad():
         result_np = get_predictions(
-            image_np, model, device=device, threshold=0.5, num_classes=1, max_iou=0.5, target_size=(280, 280)
+            image_np, model, device=device, threshold=0.8, num_classes=1, max_iou=0.9, target_size=(280, 280)
         )
     result = {
         "boxes": result_np[0].tolist(),
