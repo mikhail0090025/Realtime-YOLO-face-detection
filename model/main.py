@@ -50,16 +50,19 @@ async def root():
 @app.post("/predict")
 async def predict(tensor_file: UploadFile = File(...)):
     tensor_bytes = await tensor_file.read()
-    image = torch.load(io.BytesIO(tensor_bytes), map_location=device)
 
-    # convert tensor to numpy uint8
-    image_np = image.detach().cpu().permute(1, 2, 0).numpy()
+    # Загружаем NumPy массив из байтов
+    image_np = np.load(io.BytesIO(tensor_bytes))  # shape (H, W, C), dtype uint8
 
-    # Get image with objects
+    # Переводим в тензор для модели
+    image = torch.from_numpy(image_np).permute(2, 0, 1).to(torch.uint8).to(device)
+
+    # Получаем предсказания
     with torch.no_grad():
         result_np = get_predictions(
             image_np, model, device=device, threshold=0.8, num_classes=1, max_iou=0.9, target_size=(280, 280)
         )
+
     result = {
         "boxes": result_np[0].tolist(),
         "classes": result_np[1].tolist(),

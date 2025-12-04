@@ -7,7 +7,6 @@ from fastapi.templating import Jinja2Templates
 import requests
 import io
 from PIL import Image
-import torch
 import numpy as np
 
 app = FastAPI()
@@ -28,18 +27,24 @@ def home(request: Request):
 
 @app.post("/predict")
 async def predict(file: UploadFile = File(...)):
+    # Загружаем и подготавливаем изображение
     image = Image.open(io.BytesIO(await file.read())).convert("RGB").resize((240, 240), Image.BILINEAR)
-    image_np = np.array(image)
-    image = torch.from_numpy(image_np).permute(2, 0, 1).to(torch.uint8)
+    image_np = np.array(image)  # NumPy-массив (H, W, C)
+
+    # Сохраняем массив в байтовый поток
     tensor_bytes = io.BytesIO()
-    torch.save(image, tensor_bytes)
+    np.save(tensor_bytes, image_np)
     tensor_bytes.seek(0)
+
+    # Отправляем как файл
     response = requests.post(
         "http://model_service:8001/predict",
-        files={"tensor_file": tensor_bytes}
+        files={"tensor_file": ("image.npy", tensor_bytes, "application/octet-stream")}
     )
+
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Model service error")
+
     return JSONResponse(content=response.json())
 
 @app.get("/health")

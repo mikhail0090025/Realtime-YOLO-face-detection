@@ -33,6 +33,16 @@ async function sendFrame() {
   tempCanvas.height = 240;
   const tempCtx = tempCanvas.getContext("2d");
   tempCtx.drawImage(video, 0, 0, 240, 240);
+
+  const now = performance.now();
+  fps = 1000 / (now - lastTime);
+  lastTime = now;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "lime";
+  ctx.font = "16px Arial";
+  ctx.fillText(`FPS: ${fps.toFixed(1)}`, 10, 20);
   
   // Получаем изображение в формате blob
   const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, "image/jpeg"));
