@@ -24,7 +24,7 @@ const ctx = canvas.getContext("2d");
 navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
   video.srcObject = stream;
 });
-
+let lastTime = 0;
 // Функция для отправки кадра на сервер
 async function sendFrame() {
   // Рисуем текущий кадр на временном canvas
@@ -35,7 +35,7 @@ async function sendFrame() {
   tempCtx.drawImage(video, 0, 0, 240, 240);
 
   const now = performance.now();
-  fps = 1000 / (now - lastTime);
+  let fps = 1000 / (now - lastTime);
   lastTime = now;
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -52,13 +52,16 @@ async function sendFrame() {
   formData.append("file", blob, "frame.jpg");
 
   try {
-    const response = await fetch("http://localhost:8000/predict", {
-      method: "POST",
-      body: formData
-    });
+    const response = await fetch("http://localhost:8000/predict", { method: "POST", body: formData });
     const data = await response.json();
+    console.log("Data:");
     console.log(data);
-    drawBoxes(data.boxes);
+
+    if (data && data.boxes) {
+      drawBoxes(data.boxes);
+    } else {
+      console.warn("Нет boxes в ответе:", data);
+    }
   } catch (err) {
     console.error("Ошибка запроса:", err);
   }
@@ -83,7 +86,7 @@ function drawBoxes(boxes) {
 }
 
 // Каждые 200 мс отправляем кадр
-setInterval(sendFrame, 200);
+setInterval(sendFrame, 20);
 </script>
 </body>
 </html>

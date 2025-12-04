@@ -9,11 +9,19 @@ import io
 from PIL import Image
 import numpy as np
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
 app.mount("/templates", StaticFiles(directory="templates"), name="templates")
-app.mount("/styles", StaticFiles(directory="templates/styles"), name="styles")
-app.mount("/js", StaticFiles(directory="templates/js"), name="js")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 templates = Jinja2Templates(directory="templates")
 
@@ -44,6 +52,8 @@ async def predict(file: UploadFile = File(...)):
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Model service error")
+
+    print("Response JSON:", response.json())
 
     return JSONResponse(content=response.json())
 

@@ -36,6 +36,7 @@ if os.path.exists(model_path):
 model.eval()
 
 app = FastAPI()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,31 +44,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 @app.get("/")
 async def root():
     return {"message": "This is a root of model server. Use /predict endpoint to get predictions."}
 
 @app.post("/predict")
 async def predict(tensor_file: UploadFile = File(...)):
-    tensor_bytes = await tensor_file.read()
-
-    # Загружаем NumPy массив из байтов
-    image_np = np.load(io.BytesIO(tensor_bytes))  # shape (H, W, C), dtype uint8
-
-    # Переводим в тензор для модели
-    image = torch.from_numpy(image_np).permute(2, 0, 1).to(torch.uint8).to(device)
-
-    # Получаем предсказания
-    with torch.no_grad():
-        result_np = get_predictions(
-            image_np, model, device=device, threshold=0.8, num_classes=1, max_iou=0.9, target_size=(280, 280)
-        )
-
-    result = {
-        "boxes": result_np[0].tolist(),
-        "classes": result_np[1].tolist(),
-    }
-    return JSONResponse(content=result)
+    try:
+        tensor_bytes = await tensor_file.read()
+        image_np = np.load(io.BytesIO(tensor_bytes))  # shape (H, W, C)
+        image = torch.from_numpy(image_np).permute(2,0,1).to(torch.uint8).to(device)
+        with torch.no_grad():
+            result_np = get_predictions(
+                image_np, model, device=device, threshold=0.8,
+                num_classes=1, max_iou=0.9, target_size=(280,280)
+            )
+        return {"boxes": result_np[0].tolist(), "classes": result_np[1].tolist()}
+    except Exception as e:
+        import traceback
+        print(traceback.format_exc())
+        from fastapi import HTTPException
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 def health():
