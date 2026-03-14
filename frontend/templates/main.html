@@ -3,90 +3,234 @@
 <head>
 <meta charset="UTF-8">
 <title>Face Detection Stream</title>
+
 <style>
-  video, canvas {
-    position: absolute;
-    top: 0;
-    left: 0;
+
+*{
+  box-sizing:border-box;
+  margin:0;
+  padding:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+}
+
+body{
+  height:100vh;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  background:
+    radial-gradient(circle at 20% 20%, #3a7bfd 0%, transparent 40%),
+    radial-gradient(circle at 80% 80%, #9c5bff 0%, transparent 40%),
+    #0f1117;
+
+  color:white;
+}
+
+/* стеклянная карточка */
+
+.container{
+  backdrop-filter: blur(18px);
+  background: rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:20px;
+
+  padding:28px;
+  width:520px;
+
+  box-shadow:
+      0 20px 60px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+
+  animation:fadeIn 0.6s ease;
+}
+
+h1{
+  font-size:20px;
+  font-weight:600;
+  margin-bottom:18px;
+  opacity:.9;
+}
+
+/* камера */
+
+.camera-wrapper{
+  position:relative;
+  width:480px;
+  height:360px;
+  border-radius:14px;
+  overflow:hidden;
+
+  box-shadow:
+      0 10px 35px rgba(0,0,0,0.7),
+      0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* подсветка */
+
+.camera-wrapper::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:14px;
+  pointer-events:none;
+
+  box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.1),
+      0 0 25px rgba(100,150,255,0.15);
+}
+
+video, canvas{
+  position:absolute;
+  top:0;
+  left:0;
+}
+
+/* бейдж FPS */
+
+.fps{
+  position:absolute;
+  top:10px;
+  left:10px;
+
+  background:rgba(0,0,0,.45);
+  backdrop-filter:blur(6px);
+
+  padding:6px 10px;
+  border-radius:8px;
+
+  font-size:13px;
+  color:#7dffb1;
+}
+
+/* статус */
+
+.status{
+  margin-top:12px;
+  font-size:13px;
+  opacity:.7;
+}
+
+.status span{
+  color:#7dffb1;
+}
+
+@keyframes fadeIn{
+  from{
+    opacity:0;
+    transform:translateY(15px);
   }
+  to{
+    opacity:1;
+    transform:none;
+  }
+}
+
 </style>
 </head>
+
 <body>
-<video id="video" width="480" height="360" autoplay muted></video>
-<canvas id="canvas" width="480" height="360"></canvas>
+
+<div class="container">
+
+<h1>Real-Time Face Detection</h1>
+
+<div class="camera-wrapper">
+  <video id="video" width="480" height="360" autoplay muted></video>
+  <canvas id="canvas" width="480" height="360"></canvas>
+  <div class="fps" id="fps">FPS: 0</div>
+</div>
+
+<div class="status">
+Model status: <span>running</span>
+</div>
+
+</div>
 
 <script>
+
 const video = document.getElementById("video");
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
+const fpsLabel = document.getElementById("fps");
 
-// Получаем доступ к вебке
-navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
+// доступ к камере
+navigator.mediaDevices.getUserMedia({video:true}).then(stream=>{
   video.srcObject = stream;
 });
+
 let lastTime = 0;
-// Функция для отправки кадра на сервер
-async function sendFrame() {
-  // Рисуем текущий кадр на временном canvas
+
+async function sendFrame(){
+
   const tempCanvas = document.createElement("canvas");
   tempCanvas.width = 240;
   tempCanvas.height = 240;
+
   const tempCtx = tempCanvas.getContext("2d");
-  tempCtx.drawImage(video, 0, 0, 240, 240);
+  tempCtx.drawImage(video,0,0,240,240);
 
   const now = performance.now();
-  let fps = 1000 / (now - lastTime);
+  const fps = 1000/(now-lastTime);
   lastTime = now;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "lime";
-  ctx.font = "16px Arial";
-  ctx.fillText(`FPS: ${fps.toFixed(1)}`, 10, 20);
-  
-  // Получаем изображение в формате blob
-  const blob = await new Promise(resolve => tempCanvas.toBlob(resolve, "image/jpeg"));
+  fpsLabel.textContent = "FPS: "+fps.toFixed(1);
 
-  // Создаём FormData и отправляем POST
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  const blob = await new Promise(r=>tempCanvas.toBlob(r,"image/jpeg"));
+
   const formData = new FormData();
-  formData.append("file", blob, "frame.jpg");
+  formData.append("file",blob,"frame.jpg");
 
-  try {
-    const response = await fetch("http://localhost:8000/predict", { method: "POST", body: formData });
+  try{
+
+    const response = await fetch(
+      "http://localhost:8000/predict",
+      {method:"POST",body:formData}
+    );
+
     const data = await response.json();
-    console.log("Data:");
-    console.log(data);
 
-    if (data && data.boxes) {
+    if(data && data.boxes){
       drawBoxes(data.boxes);
-    } else {
-      console.warn("Нет boxes в ответе:", data);
     }
-  } catch (err) {
-    console.error("Ошибка запроса:", err);
+
+  }catch(err){
+    console.error(err);
   }
+
 }
 
-// Функция для отрисовки рамок
-function drawBoxes(boxes) {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = "red";
-  ctx.lineWidth = 2;
-  boxes.forEach(box => {
-    // const [x1, y1, x2, y2] = box;
-    // ctx.strokeRect(x1 * canvas.width, y1 * canvas.height,
-    //                (x2 - x1) * canvas.width, (y2 - y1) * canvas.height);
-    const [x, y, w, h] = box;
-    x1 = x - w / 2;
-    y1 = y - h / 2;
-    ctx.strokeRect(x1 * canvas.width, y1 * canvas.height,
-                   w * canvas.width, h * canvas.height);
+function drawBoxes(boxes){
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.drawImage(video,0,0,canvas.width,canvas.height);
+
+  ctx.strokeStyle="#ff4d4d";
+  ctx.lineWidth=2;
+
+  boxes.forEach(box=>{
+
+    const [x,y,w,h]=box;
+
+    const x1=x-w/2;
+    const y1=y-h/2;
+
+    ctx.strokeRect(
+      x1*canvas.width,
+      y1*canvas.height,
+      w*canvas.width,
+      h*canvas.height
+    );
+
   });
+
 }
 
-// Каждые 200 мс отправляем кадр
-setInterval(sendFrame, 20);
+setInterval(sendFrame,100);
+
 </script>
 </body>
 </html>
